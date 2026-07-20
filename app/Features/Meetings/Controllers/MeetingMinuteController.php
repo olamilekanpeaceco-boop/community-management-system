@@ -107,6 +107,19 @@ class MeetingMinuteController extends Controller
         return $pdf->download('meeting_minute_'.$minute->id.'.pdf');
     }
 
+    public function downloadAttachment(Meeting $meeting, MeetingMinute $minute, MeetingMinuteAttachment $attachment)
+    {
+        $this->authorize('view', $minute);
+
+        if ($attachment->meeting_minute_id !== $minute->id) abort(404);
+
+        $disk = config('filesystems.private_disk', config('filesystems.default', 'public'));
+
+        if (! Storage::disk($disk)->exists($attachment->file_path)) abort(404);
+
+        return Storage::disk($disk)->download($attachment->file_path, basename($attachment->file_path));
+    }
+
     public function search(Request $request, Meeting $meeting)
     {
         $this->authorize('viewAny', MeetingMinute::class);
@@ -124,8 +137,10 @@ class MeetingMinuteController extends Controller
 
     protected function storeAttachment(MeetingMinute $minute, UploadedFile $file, $userId)
     {
+        $disk = config('filesystems.private_disk', config('filesystems.default', 'public'));
+
         $filename = uniqid('minute_') . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('minutes/attachments', $filename, config('filesystems.default', 'public'));
+        $path = $file->storeAs('minutes/attachments', $filename, $disk);
 
         return $minute->attachments()->create([
             'file_path' => $path,

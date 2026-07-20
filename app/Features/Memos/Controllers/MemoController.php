@@ -189,14 +189,35 @@ class MemoController extends Controller
 
     protected function storeAttachment(Memo $memo, UploadedFile $file, $userId)
     {
+        // choose disk: use private_disk config if present, otherwise default to public
+        $disk = config('filesystems.private_disk', config('filesystems.default', 'public'));
+
         // generate a safe unique filename
         $filename = uniqid('memo_') . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('memos/attachments', $filename, config('filesystems.default', 'public'));
+        $path = $file->storeAs('memos/attachments', $filename, $disk);
 
         return $memo->attachments()->create([
             'file_path' => $path,
             'file_type' => $file->getClientMimeType(),
             'uploaded_by_id' => $userId,
         ]);
+    }
+
+    public function downloadAttachment(Memo $memo, MemoAttachment $attachment)
+    {
+        $this->authorize('view', $memo);
+
+        // ensure attachment belongs to the memo
+        if ($attachment->memo_id !== $memo->id) {
+            abort(404);
+        }
+
+        $disk = config('filesystems.private_disk', config('filesystems.default', 'public'));
+
+        if (! Storage::disk($disk)->exists($attachment->file_path)) {
+            abort(404);
+        }
+
+        return Storage::disk($disk)->download($attachment->file_path, basename($attachment->file_path));
     }
 }

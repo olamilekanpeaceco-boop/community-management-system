@@ -5,4 +5,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('memos', MemoController::class);
+    Route::get('memos/{memo}/attachments/{attachment}/download', [MemoController::class, 'downloadAttachment'])->name('memos.attachments.download');
 });
