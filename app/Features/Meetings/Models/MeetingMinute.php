@@ -11,6 +11,10 @@ class MeetingMinute extends Model
 {
     use HasFactory, SoftDeletes, HasUuids;
 
+    // UUID primary key settings
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'meeting_id',
         'summary',

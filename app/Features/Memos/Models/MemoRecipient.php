@@ -9,6 +9,10 @@ class MemoRecipient extends Model
 {
     use HasUuids;
 
+    // UUID PK configuration
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'memo_id',
         'recipient_type',

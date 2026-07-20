@@ -5,10 +5,10 @@ namespace App\Notifications;
 use App\Features\Memos\Models\Memo;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Messages\DatabaseMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class MemoNotification extends Notification
+class MemoNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -34,7 +34,7 @@ class MemoNotification extends Notification
             ->line('A new memo has been sent to you.')
             ->line($this->memo->title)
             ->action('View Memo', $url)
-            ->line('Thank you for using our application!');
+            ->line('Thank you.');
     }
 
     public function toDatabase($notifiable)
@@ -42,8 +42,7 @@ class MemoNotification extends Notification
         return [
             'memo_id' => $this->memo->id,
             'title' => $this->memo->title,
-            'snippet' => 
-                strlen($this->memo->body) > 200 ? substr($this->memo->body, 0, 197) . '...' : $this->memo->body,
+            'snippet' => strlen($this->memo->body) > 200 ? substr($this->memo->body, 0, 197) . '...' : $this->memo->body,
         ];
     }
 }

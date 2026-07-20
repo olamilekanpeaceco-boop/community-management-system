@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class MeetingMinuteController extends Controller
 {
@@ -34,15 +35,23 @@ class MeetingMinuteController extends Controller
         $this->authorize('create', MeetingMinute::class);
 
         $data = $request->validated();
-        $minute = $meeting->minutes()->create(array_merge($data, [
-            'created_by_id' => $request->user()->id,
-        ]));
+        $attachments = $request->file('attachments', []);
 
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                $this->storeAttachment($minute, $file, $request->user()->id);
+        DB::transaction(function () use (&$minute, $meeting, $data, $attachments, $request) {
+            $minute = $meeting->minutes()->create(array_merge($data, [
+                'created_by_id' => $request->user()->id,
+            ]));
+
+            if (! empty($attachments)) {
+                foreach ($attachments as $file) {
+                    $this->storeAttachment($minute, $file, $request->user()->id);
+                }
             }
-        }
+        });
+
+        DB::afterCommit(function () use ($minute, $meeting) {
+            // future: dispatch notifications about new minutes
+        });
 
         return redirect()->route('meetings.show', $meeting)->with('success', 'Meeting minutes saved.');
     }
@@ -63,13 +72,21 @@ class MeetingMinuteController extends Controller
     public function update(MeetingMinuteRequest $request, Meeting $meeting, MeetingMinute $minute): RedirectResponse
     {
         $this->authorize('update', $minute);
-        $minute->update($request->validated());
+        $attachments = $request->file('attachments', []);
 
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                $this->storeAttachment($minute, $file, $request->user()->id);
+        DB::transaction(function () use ($request, $minute, $attachments) {
+            $minute->update($request->validated());
+
+            if (! empty($attachments)) {
+                foreach ($attachments as $file) {
+                    $this->storeAttachment($minute, $file, $request->user()->id);
+                }
             }
-        }
+        });
+
+        DB::afterCommit(function () use ($minute, $meeting) {
+            // future: notifications
+        });
 
         return redirect()->route('meetings.minutes.show', [$meeting, $minute])->with('success', 'Meeting minutes updated.');
     }
@@ -107,7 +124,9 @@ class MeetingMinuteController extends Controller
 
     protected function storeAttachment(MeetingMinute $minute, UploadedFile $file, $userId)
     {
-        $path = $file->store('minutes/attachments', 'public');
+        $filename = uniqid('minute_') . '.' . $file->getClientOriginalExtension();
+        $path = $file->storeAs('minutes/attachments', $filename, config('filesystems.default', 'public'));
+
         return $minute->attachments()->create([
             'file_path' => $path,
             'file_type' => $file->getClientMimeType(),

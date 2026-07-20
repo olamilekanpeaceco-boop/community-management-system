@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class MemoController extends Controller
 {
@@ -35,59 +36,66 @@ class MemoController extends Controller
         $this->authorize('create', Memo::class);
 
         $data = $request->validated();
-        $memo = Memo::create([
-            'title' => $data['title'],
-            'body' => $data['body'],
-            'created_by_id' => $request->user()->id,
-        ]);
-
-        // attachments
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                $this->storeAttachment($memo, $file, $request->user()->id);
-            }
-        }
-
-        // recipients
         $recipients = $data['recipients'] ?? [];
+        $attachments = $request->file('attachments', []);
+
+        $memo = null;
         $targetUsers = collect();
-        foreach ($recipients as $r) {
-            $type = $r['type'];
-            $id = $r['id'] ?? null;
-            MemoRecipient::create([
-                'memo_id' => $memo->id,
-                'recipient_type' => $type,
-                'recipient_id' => $id,
+
+        DB::transaction(function () use (&$memo, &$targetUsers, $data, $recipients, $attachments, $request) {
+            $memo = Memo::create([
+                'title' => $data['title'],
+                'body' => $data['body'],
+                'created_by_id' => $request->user()->id,
             ]);
 
-            if ($type === 'all') {
-                // all members
-                $targetUsers = User::query()->where('is_active', true)->get();
-                break; // no need to evaluate other recipients
+            // attachments
+            foreach ($attachments as $file) {
+                $this->storeAttachment($memo, $file, $request->user()->id);
             }
 
-            if ($type === 'committee' && $id) {
-                // assume Committee has members via committee_members table and Member model maps to users
-                $users = User::whereHas('member', function ($q) use ($id) {
-                    $q->whereHas('committees', function ($q2) use ($id) {
-                        $q2->where('committees.id', $id);
-                    });
-                })->get();
-                $targetUsers = $targetUsers->merge($users);
+            // recipients
+            foreach ($recipients as $r) {
+                $type = $r['type'] ?? null;
+                $id = $r['id'] ?? null;
+
+                MemoRecipient::create([
+                    'memo_id' => $memo->id,
+                    'recipient_type' => $type,
+                    'recipient_id' => $id,
+                ]);
+
+                // resolve users (deferred merging)
+                if ($type === 'all') {
+                    $users = User::query()->where('is_active', true)->get();
+                    $targetUsers = $targetUsers->merge($users);
+                    break;
+                }
+
+                if ($type === 'committee' && $id) {
+                    $users = User::whereHas('member', function ($q) use ($id) {
+                        $q->whereHas('committees', function ($q2) use ($id) {
+                            $q2->where('committees.id', $id);
+                        });
+                    })->get();
+                    $targetUsers = $targetUsers->merge($users);
+                }
+
+                if ($type === 'member' && $id) {
+                    $user = User::find($id);
+                    if ($user) $targetUsers->push($user);
+                }
             }
 
-            if ($type === 'member' && $id) {
-                $user = User::find($id);
-                if ($user) $targetUsers->push($user);
+            $targetUsers = $targetUsers->unique('id');
+        });
+
+        // Notify after successful transaction
+        DB::afterCommit(function () use ($targetUsers, $memo) {
+            if ($targetUsers->isNotEmpty()) {
+                Notification::send($targetUsers, new MemoNotification($memo));
             }
-        }
-
-        $targetUsers = $targetUsers->unique('id');
-
-        // send notifications (email + in-app)
-        if ($targetUsers->isNotEmpty()) {
-            Notification::send($targetUsers, new MemoNotification($memo));
-        }
+        });
 
         return redirect()->route('memos.index')->with('success', 'Memo created and sent.');
     }
@@ -95,7 +103,7 @@ class MemoController extends Controller
     public function show(Memo $memo)
     {
         $this->authorize('view', $memo);
-        $memo->load('attachments', 'recipients');
+        $memo->load('attachments', 'recipients', 'creator');
         return view('memos.show', compact('memo'));
     }
 
@@ -109,57 +117,65 @@ class MemoController extends Controller
     public function update(MemoRequest $request, Memo $memo): RedirectResponse
     {
         $this->authorize('update', $memo);
+
         $data = $request->validated();
-
-        $memo->update([
-            'title' => $data['title'],
-            'body' => $data['body'],
-        ]);
-
-        // attachments
-        if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
-                $this->storeAttachment($memo, $file, $request->user()->id);
-            }
-        }
-
-        // replace recipients
-        $memo->recipients()->delete();
         $recipients = $data['recipients'] ?? [];
-        $targetUsers = collect();
-        foreach ($recipients as $r) {
-            $type = $r['type'];
-            $id = $r['id'] ?? null;
-            MemoRecipient::create([
-                'memo_id' => $memo->id,
-                'recipient_type' => $type,
-                'recipient_id' => $id,
+        $attachments = $request->file('attachments', []);
+
+        DB::transaction(function () use ($memo, $data, $recipients, $attachments, $request, &$targetUsers) {
+            $memo->update([
+                'title' => $data['title'],
+                'body' => $data['body'],
             ]);
 
-            if ($type === 'all') {
-                $targetUsers = User::query()->where('is_active', true)->get();
-                break;
+            // attachments
+            foreach ($attachments as $file) {
+                $this->storeAttachment($memo, $file, $request->user()->id);
             }
 
-            if ($type === 'committee' && $id) {
-                $users = User::whereHas('member', function ($q) use ($id) {
-                    $q->whereHas('committees', function ($q2) use ($id) {
-                        $q2->where('committees.id', $id);
-                    });
-                })->get();
-                $targetUsers = $targetUsers->merge($users);
+            // replace recipients
+            $memo->recipients()->delete();
+
+            $targetUsers = collect();
+            foreach ($recipients as $r) {
+                $type = $r['type'] ?? null;
+                $id = $r['id'] ?? null;
+
+                MemoRecipient::create([
+                    'memo_id' => $memo->id,
+                    'recipient_type' => $type,
+                    'recipient_id' => $id,
+                ]);
+
+                if ($type === 'all') {
+                    $users = User::query()->where('is_active', true)->get();
+                    $targetUsers = $targetUsers->merge($users);
+                    break;
+                }
+
+                if ($type === 'committee' && $id) {
+                    $users = User::whereHas('member', function ($q) use ($id) {
+                        $q->whereHas('committees', function ($q2) use ($id) {
+                            $q2->where('committees.id', $id);
+                        });
+                    })->get();
+                    $targetUsers = $targetUsers->merge($users);
+                }
+
+                if ($type === 'member' && $id) {
+                    $user = User::find($id);
+                    if ($user) $targetUsers->push($user);
+                }
             }
 
-            if ($type === 'member' && $id) {
-                $user = User::find($id);
-                if ($user) $targetUsers->push($user);
-            }
-        }
-        $targetUsers = $targetUsers->unique('id');
+            $targetUsers = $targetUsers->unique('id');
+        });
 
-        if ($targetUsers->isNotEmpty()) {
-            Notification::send($targetUsers, new MemoNotification($memo));
-        }
+        DB::afterCommit(function () use ($targetUsers, $memo) {
+            if (! empty($targetUsers) && $targetUsers->isNotEmpty()) {
+                Notification::send($targetUsers, new MemoNotification($memo));
+            }
+        });
 
         return redirect()->route('memos.show', $memo)->with('success', 'Memo updated.');
     }
@@ -173,7 +189,10 @@ class MemoController extends Controller
 
     protected function storeAttachment(Memo $memo, UploadedFile $file, $userId)
     {
-        $path = $file->store('memos/attachments', 'public');
+        // generate a safe unique filename
+        $filename = uniqid('memo_') . '.' . $file->getClientOriginalExtension();
+        $path = $file->storeAs('memos/attachments', $filename, config('filesystems.default', 'public'));
+
         return $memo->attachments()->create([
             'file_path' => $path,
             'file_type' => $file->getClientMimeType(),

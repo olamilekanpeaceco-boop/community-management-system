@@ -59,9 +59,10 @@ class Meeting extends Model
         return $this->hasMany(MeetingAgenda::class);
     }
 
+    // FIXED: meetings can have multiple minutes -> use hasMany
     public function minutes()
     {
-        return $this->hasOne(MeetingMinute::class);
+        return $this->hasMany(MeetingMinute::class);
     }
 
     public function attendance()

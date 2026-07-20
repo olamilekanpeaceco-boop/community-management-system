@@ -9,6 +9,10 @@ class MeetingMinuteAttachment extends Model
 {
     use HasUuids;
 
+    // UUID primary key settings
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'meeting_minute_id',
         'file_path',

@@ -11,6 +11,10 @@ class Memo extends Model
 {
     use HasFactory, SoftDeletes, HasUuids;
 
+    // UUID PK configuration
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'title',
         'body',

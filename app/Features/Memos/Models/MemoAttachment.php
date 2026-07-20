@@ -9,6 +9,10 @@ class MemoAttachment extends Model
 {
     use HasUuids;
 
+    // UUID PK configuration
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'memo_id',
         'file_path',
