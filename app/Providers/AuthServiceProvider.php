@@ -4,6 +4,12 @@ namespace App\Providers;
 
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use App\Features\Meetings\Models\Meeting;
+use App\Features\Memos\Models\Memo;
+use App\Features\Meetings\Models\MeetingMinute;
+use App\Policies\MeetingPolicy;
+use App\Policies\MemoPolicy;
+use App\Policies\MeetingMinutePolicy;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -13,10 +19,9 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        // Register generated policies
-        \App\Features\Meetings\Models\MeetingMinute::class => \App\Policies\MeetingMinutePolicy::class,
-        \App\Features\Memos\Models\Memo::class => \App\Policies\MemoPolicy::class,
-        // add other mappings here as needed
+        Meeting::class => MeetingPolicy::class,
+        Memo::class => MemoPolicy::class,
+        MeetingMinute::class => MeetingMinutePolicy::class,
     ];
 
     /**
@@ -26,6 +31,6 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        // Additional gates can be defined here
+        // Additional Gates can be defined here if needed
     }
 }

@@ -33,16 +33,14 @@ class Meeting extends Model
         'reminder_sent_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'scheduled_at' => 'datetime',
-            'cancelled_at' => 'datetime',
-            'reminder_sent_at' => 'datetime',
-            'recurrence_end_date' => 'date',
-            'is_recurring' => 'boolean',
-        ];
-    }
+    // Corrected: use $casts property so Eloquent recognizes the casts
+    protected $casts = [
+        'scheduled_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'reminder_sent_at' => 'datetime',
+        'recurrence_end_date' => 'date',
+        'is_recurring' => 'boolean',
+    ];
 
     public function committee()
     {
@@ -59,10 +57,9 @@ class Meeting extends Model
         return $this->hasMany(MeetingAgenda::class);
     }
 
-    // FIXED: meetings can have multiple minutes -> use hasMany
     public function minutes()
     {
-        return $this->hasMany(MeetingMinute::class);
+        return $this->hasOne(MeetingMinute::class);
     }
 
     public function attendance()

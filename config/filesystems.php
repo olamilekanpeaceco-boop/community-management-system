@@ -1,43 +1,10 @@
 <?php
 
 return [
-    /*
-    |--------------------------------------------------------------------------
-    | Default Filesystem Disk
-    |--------------------------------------------------------------------------
-    |
-    | Here you may specify the default filesystem disk that should be used
-    | by the framework. The "local" disk, as well as a variety of cloud
-    | based disks are available to your application. Just store away!
-    |
-    */
 
-    'default' => env('FILESYSTEM_DRIVER', 'local'),
+    'default' => env('FILESYSTEM_DRIVER', 'public'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Private disk selection
-    |--------------------------------------------------------------------------
-    |
-    | Some features (attachments, private downloads) require a private disk.
-    | Set FILESYSTEM_PRIVATE in your .env to the disk name to use for private
-    | attachments (e.g. local_private or s3-private). This value falls back
-    | to the configured default disk if not provided.
-    |
-    */
-
-    'private_disk' => env('FILESYSTEM_PRIVATE', 'local_private'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Filesystem Disks
-    |--------------------------------------------------------------------------
-    |
-    | Here you may configure as many filesystem "disks" as you wish, and you
-    | may even configure multiple disks of the same driver. Defaults have
-    | been supplied for each driver as an example of the required options.
-    |
-    */
+    'cloud' => env('FILESYSTEM_CLOUD', 's3'),
 
     'disks' => [
 
@@ -55,8 +22,8 @@ return [
             'throw' => false,
         ],
 
-        // Private local storage (not web-accessible)
-        'local_private' => [
+        // private disk for attachments or private documents
+        'private' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
             'visibility' => 'private',
@@ -77,18 +44,4 @@ return [
 
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Symbolic Links
-    |--------------------------------------------------------------------------
-    |
-    | Here you may configure the symbolic links that will be created when the
-    | `storage:link` Artisan command is executed. The array keys should be
-    | the locations of the links and the values should be their targets.
-    |
-    */
-
-    'links' => [
-        public_path('storage') => storage_path('app/public'),
-    ],
 ];

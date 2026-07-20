@@ -2,33 +2,36 @@
 
 namespace App\Policies;
 
-use App\Features\Meetings\Models\MeetingMinute;
 use App\Models\User;
+use App\Features\Meetings\Models\MeetingMinute;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class MeetingMinutePolicy
 {
+    use HandlesAuthorization;
+
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->hasPermissionTo('manage-minutes') || $user->hasRole('super_admin');
     }
 
     public function view(User $user, MeetingMinute $minute): bool
     {
-        return true;
+        return $this->viewAny($user);
     }
 
     public function create(User $user): bool
     {
-        return $user->can('manage-meetings');
+        return $user->hasPermissionTo('manage-minutes') || $user->hasRole('super_admin');
     }
 
     public function update(User $user, MeetingMinute $minute): bool
     {
-        return $user->can('manage-meetings') || $user->id === $minute->created_by_id;
+        return $user->hasPermissionTo('manage-minutes') || $user->hasRole('super_admin');
     }
 
     public function delete(User $user, MeetingMinute $minute): bool
     {
-        return $user->can('manage-meetings');
+        return $user->hasPermissionTo('manage-minutes') || $user->hasRole('super_admin');
     }
 }
