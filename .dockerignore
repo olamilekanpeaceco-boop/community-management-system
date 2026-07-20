@@ -1,0 +1,10 @@
+vendor
+node_modules
+npm-debug.log
+.env
+storage/*.key
+.git
+.gitignore
+tests
+.DS_Store
+.env.testing
