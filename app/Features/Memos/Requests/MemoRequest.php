@@ -28,7 +28,11 @@ class MemoRequest extends FormRequest
         if (class_exists('\Purifier')) {
             $clean = \Purifier::clean($body);
         } else {
-            $clean = \App\Utils\HtmlSanitizer::sanitize($body);
+            if (method_exists(\App\Utils\HtmlSanitizer::class, 'sanitize')) {
+                $clean = \App\Utils\HtmlSanitizer::sanitize($body);
+            } else {
+                $clean = strip_tags($body);
+            }
         }
 
         $this->merge(['body' => $clean]);

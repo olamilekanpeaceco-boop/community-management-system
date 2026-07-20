@@ -30,7 +30,11 @@ class MeetingMinuteRequest extends FormRequest
         if (class_exists('\Purifier')) {
             $clean = \Purifier::clean($notes);
         } else {
-            $clean = \App\Utils\HtmlSanitizer::sanitize($notes);
+            if (method_exists(\App\Utils\HtmlSanitizer::class, 'sanitize')) {
+                $clean = \App\Utils\HtmlSanitizer::sanitize($notes);
+            } else {
+                $clean = strip_tags($notes);
+            }
         }
 
         $this->merge(['discussion_notes' => $clean]);
